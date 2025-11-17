@@ -5,45 +5,38 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Controle de Extintores — Painel</title>
 
-<!-- CDN libs para PDF (html2canvas e jsPDF) -->
+<!-- libs -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
-  :root{
-    --bg:#f4f7fb; --card:#fff; --text:#0b1220; --muted:#6b7280; --accent:#0b6efd; --ok:#16a34a; --warn:#f59e0b; --danger:#ef4444;
-  }
-  [data-theme="dark"]{
-    --bg:#071024; --card:#0b1220; --text:#e6eef9; --muted:#9aa6bd; --accent:#4ea8ff; --ok:#34d399; --warn:#fbbf24; --danger:#f87171;
-  }
+  :root{ --bg:#f4f7fb; --card:#fff; --text:#0b1220; --muted:#6b7280; --accent:#0b6efd; --ok:#16a34a; --warn:#f59e0b; --danger:#ef4444; }
+  [data-theme="dark"]{ --bg:#071024; --card:#0b1220; --text:#e6eef9; --muted:#9aa6bd; --accent:#4ea8ff; --ok:#34d399; --warn:#fbbf24; --danger:#f87171; }
   *{box-sizing:border-box}
-  body{ margin:0; font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:var(--text); }
+  body{ margin:0; font-family:Inter, system-ui, Arial; background:var(--bg); color:var(--text); }
   header{ display:flex; justify-content:space-between; align-items:center; padding:14px 18px; background: linear-gradient(90deg,var(--accent), #75a9ff); color:#fff; }
   .container{ max-width:1200px; margin:20px auto; padding:0 16px; }
   .card{ background:var(--card); padding:14px; border-radius:12px; box-shadow: 0 8px 24px rgba(8,20,60,0.06); margin-bottom:16px; }
   .grid{ display:grid; grid-template-columns: repeat(4,1fr); gap:12px; }
   .stat{ padding:12px; border-radius:10px; }
   .btn{ padding:8px 12px; background:var(--accent); border:none; color:#fff; border-radius:8px; cursor:pointer; }
-  .btn-muted{ background:transparent; border:1px solid rgba(0,0,0,0.06); color:var(--text); }
+  .btn-muted{ padding:8px 12px; background:transparent; border:1px solid rgba(0,0,0,0.06); color:var(--text); border-radius:8px; cursor:pointer; }
   .flex{ display:flex; gap:8px; align-items:center; }
   table{ width:100%; border-collapse:collapse; font-size:13px; }
   th, td{ padding:8px 10px; border-bottom:1px solid rgba(0,0,0,0.06); text-align:left; }
   input, select, textarea{ padding:8px 10px; border-radius:8px; border:1px solid #e6eefc; width:100%; background:transparent; color:var(--text); }
-  .searchRow{ display:flex; gap:8px; margin-bottom:12px; }
   .topbar{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
-  .mobileHide{ display:block; }
   .thumb{ width:56px; height:40px; object-fit:cover; border-radius:6px; border:1px solid rgba(0,0,0,0.06); }
-  @media (max-width:900px){
-    .grid{ grid-template-columns:repeat(1,1fr); }
-    .mobileHide{ display:none; }
-  }
+  @media (max-width:900px){ .grid{ grid-template-columns:repeat(1,1fr); } .mobileHide{ display:none; } }
   /* modal */
   .modalWrap{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(2,6,23,0.45); z-index:40; }
   .modal{ width:100%; max-width:820px; background:var(--card); padding:16px; border-radius:10px; }
   .row{ display:flex; gap:8px; }
   .row .col{ flex:1; }
   .small{ font-size:13px; color:var(--muted); }
-  .tag{ padding:6px 10px; border-radius:999px; display:inline-block; font-size:12px; }
+  .navBtn{ background:transparent; color:#fff; border-radius:8px; padding:8px 10px; border:1px solid rgba(255,255,255,0.12); cursor:pointer; }
+  .activeNav{ background:rgba(255,255,255,0.12); }
 </style>
 </head>
 <body data-theme="light">
@@ -51,55 +44,96 @@
 <header>
   <div style="font-weight:700">Controle de Extintores</div>
   <div class="flex">
+    <button id="navUso" class="navBtn activeNav">Extintores em Uso</button>
+    <button id="navDep" class="navBtn">Depósito</button>
     <button id="themeToggle" class="btn btn-muted">Dark</button>
     <button id="exportCsv" class="btn btn-muted">Export CSV</button>
-    <button id="reloadBtn" class="btn">Atualizar</button>
   </div>
 </header>
 
 <div class="container">
+  <!-- Top bar with user name -->
   <div class="card topbar">
     <div>
-      <h3 style="margin:0">Painel de Controle</h3>
-      <div class="small">Gerencie extintores — cadastro, edição, permuta, fotos e export</div>
+      <div style="font-size:16px;font-weight:700">Painel</div>
+      <div class="small">Nome (salvo no navegador): <span id="userNameDisplay"></span></div>
     </div>
     <div class="flex">
-      <select id="filterTipo"><option value="">Filtrar por Tipo/kg (Todos)</option></select>
-      <input id="searchInput" placeholder="Buscar por Número ou ID" style="min-width:220px" />
-      <button id="btnCriar" class="btn">Novo Extintor</button>
-      <button id="btnPermuta" class="btn btn-muted">Permutar</button>
+      <input id="userName" placeholder="Seu nome (opcional)" style="min-width:180px" />
+      <button id="saveName" class="btn btn-muted">Salvar nome</button>
+      <button id="newBtn" class="btn">Novo</button>
     </div>
   </div>
 
-  <div id="statsRow" class="grid"></div>
-
-  <div class="card">
-    <h4 style="margin:0 0 12px 0">Extintores em Uso</h4>
-    <div class="searchRow">
-      <input id="filtroLocal" placeholder="Filtrar por Local / Edificação" />
-      <select id="filtroSituacao"><option value="">Filtrar por Situação</option><option>Conforme</option><option>Não conforme</option><option>Vencido</option></select>
-      <div style="flex:1"></div>
-      <button id="refreshUso" class="btn btn-muted">Atualizar</button>
+  <!-- USO view -->
+  <div id="viewUso">
+    <div class="card" style="display:flex;gap:16px;align-items:center">
+      <div style="flex:1">
+        <div style="font-weight:700">Gráfico — Distribuição</div>
+        <div class="small">Escolha a coluna para gerar o gráfico donut</div>
+      </div>
+      <div style="width:420px; display:flex; gap:8px; align-items:center;">
+        <select id="chartColumnSelect" style="flex:1;padding:8px;border-radius:8px;">
+          <option>Edificação</option>
+          <option>Tipo/kg</option>
+          <option>Situação</option>
+          <option>Não conformidade</option>
+          <option>Fabricação</option>
+          <option>Validade Nível 2</option>
+          <option>Validade Nível 3</option>
+          <option>Equipe</option>
+          <option>Responsável</option>
+        </select>
+        <button id="refreshChart" class="btn btn-muted">Atualizar</button>
+      </div>
     </div>
-    <div id="usoTableWrap"></div>
+
+    <div class="card" style="display:flex;gap:12px;flex-wrap:wrap;">
+      <div style="width:420px;">
+        <canvas id="donutChart" width="420" height="260"></canvas>
+      </div>
+      <div style="flex:1">
+        <div class="flex" style="margin-bottom:8px;">
+          <input id="filterTipo" placeholder="Filtrar por Tipo/kg" />
+          <input id="searchUso" placeholder="Buscar por Número ou ID" style="min-width:220px" />
+          <button id="btnPermuta" class="btn btn-muted">Permutar</button>
+        </div>
+        <div id="statsUso" class="grid"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4 style="margin:0 0 12px 0">Lista — Em Uso</h4>
+      <div id="usoTableWrap"></div>
+    </div>
   </div>
 
-  <div class="card">
-    <h4 style="margin:0 0 12px 0">Depósito</h4>
-    <div class="searchRow">
-      <select id="filtroDepStatus"><option value="">Filtrar por Status</option><option>Operacional</option><option>Não operacional</option><option>Vencido</option></select>
-      <div style="flex:1"></div>
-      <button id="refreshDep" class="btn btn-muted">Atualizar</button>
+  <!-- DEPOSITO view -->
+  <div id="viewDep" style="display:none;">
+    <div class="card">
+      <div class="flex" style="justify-content:space-between">
+        <div>
+          <h4 style="margin:0 0 6px 0">Depósito</h4>
+          <div class="small">Itens disponíveis no depósito</div>
+        </div>
+        <div class="flex">
+          <select id="filterDepStatus"><option value="">Filtrar por Status</option><option>Operacional</option><option>Não operacional</option><option>Vencido</option></select>
+          <input id="searchDep" placeholder="Buscar por ID ou Tipo/kg" />
+        </div>
+      </div>
     </div>
-    <div id="depTableWrap"></div>
+    <div class="card">
+      <div id="depTableWrap"></div>
+    </div>
   </div>
+
 </div>
 
-<!-- Modal area -->
+<!-- Modal -->
 <div id="modalRoot" class="modalWrap" style="display:none;">
-  <div class="modal" role="dialog">
+  <div class="modal">
     <h3 id="modalTitle">Modal</h3>
-    <div id="modalContent"></div>
+    <div id="modalBody"></div>
     <div style="height:12px"></div>
     <div style="text-align:right">
       <button id="modalClose" class="btn btn-muted">Fechar</button>
@@ -109,143 +143,81 @@
 </div>
 
 <script>
-/* ------------------------------
-  Config
--------------------------------*/
-const API_URL = 'https://script.google.com/macros/s/AKfycbz6dUt-tCk0HM1sFU2eCOEszuNk_hXw6BPnKhFpLXDRB1Ppksy4HpfYRmbQIXsrfOYJ/exec'; // <<-- substitua
-const LS_KEY = 'ce_state_v1';
+/* ---------- CONFIG: coloque aqui a URL do seu Apps Script (WebApp) ---------- */
+const API_URL = 'https://script.google.com/macros/s/AKfycbz6dUt-tCk0HM1sFU2eCOEszuNk_hXw6BPnKhFpLXDRB1Ppksy4HpfYRmbQIXsrfOYJ/exec'; // <<-- substituir
+/* ------------------------------------------------------------------------- */
 
-/* ------------------------------
-  Small helpers
--------------------------------*/
-function apiGet(q){
-  const url = API_URL + '?' + new URLSearchParams(q);
-  return fetch(url).then(r=>r.json());
-}
-function apiPost(obj){
-  return fetch(API_URL, {method:'POST', body: JSON.stringify(obj)}).then(r=>r.json());
-}
-function fmtDateForInput(d){
-  if(!d) return '';
-  const dt = new Date(d);
-  if(isNaN(dt)) return d;
-  const day = ('0'+dt.getDate()).slice(-2);
-  const mon = ('0'+(dt.getMonth()+1)).slice(-2);
-  const year = dt.getFullYear();
-  return `${day}/${mon}/${year}`;
-}
-function parseDDMMYYYY(str){
-  if(!str) return null;
-  const parts = String(str).split('/');
-  if(parts.length!==3) return null;
-  const dd = parseInt(parts[0],10), mm = parseInt(parts[1],10)-1, yy = parseInt(parts[2],10);
-  return new Date(yy,mm,dd);
-}
-function toISODateForSheet(str){
-  const d = parseDDMMYYYY(str);
-  if(!d) return '';
-  return d.toISOString();
-}
+function apiGet(q){ const url = API_URL + '?' + new URLSearchParams(q); return fetch(url).then(r=>r.json()); }
+function apiPost(body){ return fetch(API_URL, {method:'POST', body: JSON.stringify(body)}).then(r=>r.json()); }
 
-/* ------------------------------
-  State and init
--------------------------------*/
-let state = {
-  uso: [],
-  deposito: [],
-  tipos: []
-};
+/* ---------- state ---------- */
+let state = { uso:[], deposito:[] };
 
+/* ---------- UI refs ---------- */
+const navUso = document.getElementById('navUso');
+const navDep = document.getElementById('navDep');
+const viewUso = document.getElementById('viewUso');
+const viewDep = document.getElementById('viewDep');
 const modalRoot = document.getElementById('modalRoot');
+const modalBody = document.getElementById('modalBody');
 const modalTitle = document.getElementById('modalTitle');
-const modalContent = document.getElementById('modalContent');
-const modalSave = document.getElementById('modalSave');
-const modalClose = document.getElementById('modalClose');
 
-document.getElementById('reloadBtn').addEventListener('click', loadAll);
-document.getElementById('refreshUso').addEventListener('click', loadUso);
-document.getElementById('refreshDep').addEventListener('click', loadDeposito);
-document.getElementById('btnCriar').addEventListener('click', ()=> openCreateModal('uso'));
-document.getElementById('btnPermuta').addEventListener('click', ()=> openPermutaModal());
-document.getElementById('modalClose').addEventListener('click', ()=> modalRoot.style.display='none');
-document.getElementById('themeToggle').addEventListener('click', toggleTheme);
-document.getElementById('exportCsv').addEventListener('click', exportCSV);
+navUso.addEventListener('click', ()=> { navUso.classList.add('activeNav'); navDep.classList.remove('activeNav'); viewUso.style.display='block'; viewDep.style.display='none'; });
+navDep.addEventListener('click', ()=> { navDep.classList.add('activeNav'); navUso.classList.remove('activeNav'); viewUso.style.display='none'; viewDep.style.display='block'; });
 
-/* theme init */
-(function(){ const theme = localStorage.getItem('ce_theme') || 'light'; document.body.setAttribute('data-theme', theme); document.getElementById('themeToggle').textContent = theme==='light' ? 'Dark' : 'Light'; })();
+document.getElementById('themeToggle').addEventListener('click', ()=> {
+  const cur = document.body.getAttribute('data-theme') || 'light';
+  const next = cur === 'light' ? 'dark' : 'light';
+  document.body.setAttribute('data-theme', next);
+  localStorage.setItem('ce_theme', next);
+  document.getElementById('themeToggle').textContent = next==='light' ? 'Dark' : 'Light';
+});
+(function(){ const t = localStorage.getItem('ce_theme')||'light'; document.body.setAttribute('data-theme', t); document.getElementById('themeToggle').textContent = t==='light' ? 'Dark' : 'Light'; })();
 
-/* init load */
+/* ---------- user name in localStorage ---------- */
+const userNameInput = document.getElementById('userName');
+const userNameDisplay = document.getElementById('userNameDisplay');
+document.getElementById('saveName').addEventListener('click', ()=> {
+  const v = userNameInput.value.trim();
+  localStorage.setItem('ce_user', v);
+  userNameDisplay.textContent = v || '(não definido)';
+});
+(function(){ const u = localStorage.getItem('ce_user') || ''; userNameInput.value = u; userNameDisplay.textContent = u || '(não definido)'; })();
+
+/* ---------- load data ---------- */
+async function loadAll(){
+  const r1 = await apiGet({acao:'listar', aba:'uso'});
+  const r2 = await apiGet({acao:'listar', aba:'deposito'});
+  state.uso = (r1.ok && r1.data) ? r1.data : [];
+  state.deposito = (r2.ok && r2.data) ? r2.data : [];
+  renderAll();
+  buildChart();
+}
+document.getElementById('newBtn').addEventListener('click', ()=> openCreateModal('uso'));
+document.getElementById('exportCsv').addEventListener('click', exportCsv);
+
 loadAll();
 
-/* ------------------------------
-  Loaders
--------------------------------*/
-async function loadAll(){
-  await Promise.all([loadUso(), loadDeposito()]);
-  buildFilters();
-  buildStats();
-}
-
-async function loadUso(){
-  const res = await apiGet({acao:'listar', aba:'uso'});
-  state.uso = (res.ok && res.data) ? res.data : [];
+/* ---------- renderers ---------- */
+function renderAll(){
   renderUsoTable();
-  buildFilters();
-  buildStats();
-}
-
-async function loadDeposito(){
-  const res = await apiGet({acao:'listar', aba:'deposito'});
-  state.deposito = (res.ok && res.data) ? res.data : [];
   renderDepTable();
-  buildFilters();
   buildStats();
-}
-
-/* ------------------------------
-  Renderers
--------------------------------*/
-function buildStats(){
-  const el = document.getElementById('statsRow');
-  el.innerHTML = '';
-  const totalUso = state.uso.length;
-  const totalDep = state.deposito.length;
-  const conformes = state.uso.filter(r=> String(r['Situação']||'').toLowerCase().includes('conforme')).length;
-  const vencidos = state.uso.filter(r=>{
-    const v2 = r['Validade Nível 2']; if(!v2) return false;
-    const d = new Date(v2); return d < new Date();
-  }).length;
-  const cards = [
-    {title:'Em Uso', value:totalUso},
-    {title:'No Depósito', value:totalDep},
-    {title:'Conformes', value:conformes},
-    {title:'Vencidos (N2)', value:vencidos}
-  ];
-  cards.forEach(c=>{
-    const div = document.createElement('div');
-    div.className='card stat';
-    div.innerHTML = `<div style="font-size:13px;color:var(--muted)">${c.title}</div><div style="font-weight:700;font-size:20px">${c.value}</div>`;
-    el.appendChild(div);
-  });
+  populateTipoFilter();
 }
 
 function renderUsoTable(){
   const wrap = document.getElementById('usoTableWrap');
-  const filtroTipo = document.getElementById('filterTipo').value;
-  const search = document.getElementById('searchInput').value.trim().toLowerCase();
-  const filtroLocal = document.getElementById('filtroLocal').value.trim().toLowerCase();
-  const filtroSitu = document.getElementById('filtroSituacao').value;
+  const filtro = document.getElementById('filterTipo').value.trim().toLowerCase();
+  const search = document.getElementById('searchUso').value.trim().toLowerCase();
   let rows = state.uso.slice();
-  if(filtroTipo) rows = rows.filter(r=> (r['Tipo/kg']||'').toLowerCase() === filtroTipo.toLowerCase());
-  if(filtroLocal) rows = rows.filter(r=> ((r['Local']||'') + (r['Edificação']||'')).toLowerCase().includes(filtroLocal));
-  if(filtroSitu) rows = rows.filter(r=> String(r['Situação']||'') === filtroSitu);
-  if(search) rows = rows.filter(r=> (String(r['Número']||'') + ' ' + (r['ID']||'')).toLowerCase().includes(search));
-  const headers = ['Foto','ID','Número','Edificação','Local','Tipo/kg','Situação','Validade Nível 2','Ações'];
-  let html = '<table><thead><tr>' + headers.map(h=>`<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+  if(filtro) rows = rows.filter(r => (r['Tipo/kg']||'').toLowerCase() === filtro);
+  if(search) rows = rows.filter(r => ((r['Número']||'')+' '+(r['ID']||'')+' '+(r['Local']||'')).toLowerCase().includes(search));
+  let html = '<table><thead><tr><th>Foto</th><th>ID</th><th>Número</th><th>Edificação</th><th>Local</th><th>Tipo/kg</th><th>Situação</th><th>Validade Nível 2</th><th>Ações</th></tr></thead><tbody>';
   if(rows.length===0) html += '<tr><td colspan="9">Nenhum registro</td></tr>';
   rows.forEach(r=>{
     const thumb = r['FotoURL'] ? `<img src="${r['FotoURL']}" class="thumb" />` : '';
-    const val2 = r['Validade Nível 2'] ? fmtDateForInput(r['Validade Nível 2']) : '';
+    const val2 = r['Validade Nível 2'] ? formatDate(r['Validade Nível 2']) : '';
     html += `<tr>
       <td>${thumb}</td>
       <td>${r['ID']||''}</td>
@@ -257,7 +229,7 @@ function renderUsoTable(){
       <td>${val2}</td>
       <td>
         <button class="btn" onclick="openEdit('${r['ID']}')">Editar</button>
-        <button class="btn btn-muted" onclick="openPermutaModal('${r['ID']}')">Permutar</button>
+        <button class="btn btn-muted" onclick="openPermuta('${r['ID']}')">Permutar</button>
         <button class="btn btn-muted" onclick="downloadPdf('${r['ID']}')">PDF</button>
       </td>
     </tr>`;
@@ -268,13 +240,12 @@ function renderUsoTable(){
 
 function renderDepTable(){
   const wrap = document.getElementById('depTableWrap');
-  const filtroStatus = document.getElementById('filtroDepStatus').value;
-  const search = document.getElementById('searchInput').value.trim().toLowerCase();
+  const filtro = document.getElementById('filterDepStatus').value;
+  const search = document.getElementById('searchDep').value.trim().toLowerCase();
   let rows = state.deposito.slice();
-  if(filtroStatus) rows = rows.filter(r=> String(r['Status']||'') === filtroStatus);
-  if(search) rows = rows.filter(r=> (String(r['ID']||'') + ' ' + (r['Tipo/kg']||'')).toLowerCase().includes(search));
-  const headers = ['ID','Tipo/kg','Status','Ações'];
-  let html = '<table><thead><tr>' + headers.map(h=>`<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+  if(filtro) rows = rows.filter(r => (r['Status']||'') === filtro);
+  if(search) rows = rows.filter(r => ((r['ID']||'')+' '+(r['Tipo/kg']||'')).toLowerCase().includes(search));
+  let html = '<table><thead><tr><th>ID</th><th>Tipo/kg</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
   if(rows.length===0) html += '<tr><td colspan="4">Nenhum registro</td></tr>';
   rows.forEach(r=>{
     html += `<tr>
@@ -283,7 +254,7 @@ function renderDepTable(){
       <td>${r['Status']||''}</td>
       <td>
         <button class="btn" onclick="openEdit('${r['ID']}','deposito')">Editar</button>
-        <button class="btn btn-muted" onclick="openPermutaModal(null,'${r['ID']}')">Escolher</button>
+        <button class="btn btn-muted" onclick="openPermuta(null,'${r['ID']}')">Escolher</button>
       </td>
     </tr>`;
   });
@@ -291,299 +262,258 @@ function renderDepTable(){
   wrap.innerHTML = html;
 }
 
-/* ------------------------------
-  Filters / helpers
--------------------------------*/
-function buildFilters(){
-  // types
+function buildStats(){
+  const el = document.getElementById('statsUso');
+  el.innerHTML = '';
+  const totalUso = state.uso.length;
+  const totalDep = state.deposito.length;
+  const conformes = state.uso.filter(r=> String(r['Situação']||'').toLowerCase().includes('conforme')).length;
+  const vencidos = state.uso.filter(r=> { const v = r['Validade Nível 2']; return v && new Date(v) < new Date(); }).length;
+  const cards = [
+    {title:'Em Uso', value: totalUso},
+    {title:'No Depósito', value: totalDep},
+    {title:'Conformes', value: conformes},
+    {title:'Vencidos (N2)', value: vencidos}
+  ];
+  cards.forEach(c=>{
+    const d = document.createElement('div'); d.className='card stat'; d.style.padding='10px';
+    d.innerHTML = `<div style="font-size:13px;color:var(--muted)">${c.title}</div><div style="font-weight:700;font-size:18px">${c.value}</div>`;
+    el.appendChild(d);
+  });
+}
+
+function populateTipoFilter(){
+  const sel = document.getElementById('filterTipo');
   const tipos = new Set();
   state.uso.forEach(r=> r['Tipo/kg'] && tipos.add(r['Tipo/kg']));
   state.deposito.forEach(r=> r['Tipo/kg'] && tipos.add(r['Tipo/kg']));
-  const sel = document.getElementById('filterTipo');
-  sel.innerHTML = '<option value="">Filtrar por Tipo/kg (Todos)</option>';
-  [...tipos].sort().forEach(t=>{
-    const opt = document.createElement('option'); opt.value=t; opt.textContent=t; sel.appendChild(opt);
+  sel.innerHTML = '<option value="">Filtrar por Tipo/kg</option>';
+  [...tipos].sort().forEach(t => {
+    const opt = document.createElement('option'); opt.value = t; opt.textContent = t; sel.appendChild(opt);
   });
-  sel.addEventListener('change', ()=> { renderUsoTable(); renderDepTable(); });
 }
 
-/* ------------------------------
-  Create / Edit modal
--------------------------------*/
+/* ---------- helpers ---------- */
+function formatDate(v){
+  try {
+    const d = new Date(v);
+    if(isNaN(d)) return v;
+    return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();
+  } catch(e){ return v; }
+}
+
+/* ---------- CRUD modals ---------- */
 function openCreateModal(aba){
-  modalTitle.textContent = aba === 'deposito' ? 'Cadastrar (Depósito)' : 'Cadastrar Extintor (Em Uso)';
-  modalContent.innerHTML = buildForm(null, aba);
+  modalTitle.textContent = aba === 'deposito' ? 'Novo (Depósito)' : 'Novo Extintor (Em Uso)';
+  modalBody.innerHTML = buildForm(null, aba);
   modalRoot.style.display = 'flex';
-  modalSave.onclick = async ()=> {
+  document.getElementById('modalSave').onclick = async ()=> {
     const data = readFormValues();
-    // validate required fields e.g. Tipo/kg
-    if(!data['Tipo/kg'] || data['Tipo/kg'].trim()===''){ alert('Tipo/kg é obrigatório'); return; }
-    // normalize date fields to ISO
-    if(data['Validade Nível 2']) data['Validade Nível 2'] = toISODateForSheet(data['Validade Nível 2']);
-    if(data['Validade Nível 3']) data['Validade Nível 3'] = toISODateForSheet(data['Validade Nível 3']);
+    if(data['Validade Nível 2']) data['Validade Nível 2'] = toISO(data['Validade Nível 2']);
+    if(data['Validade Nível 3']) data['Validade Nível 3'] = toISO(data['Validade Nível 3']);
+    // upload file if present
+    if(data._file){
+      try {
+        const url = await uploadAndGetUrl(data._file);
+        data['FotoURL'] = url;
+      } catch(e){ alert('Erro upload: ' + e); return; }
+    }
     const res = await apiPost({acao:'cadastrar', aba: aba, data});
-    if(res.ok){ modalRoot.style.display='none'; await loadAll(); } else alert(res.error || 'Erro');
+    if(res.ok){ modalRoot.style.display='none'; await loadAll(); } else alert(res.error||'Erro');
   };
 }
 
 function openEdit(id, aba){
-  // find object
-  const obj = (aba === 'deposito') ? state.deposito.find(r=>r['ID']===id) : state.uso.find(r=>r['ID']===id);
+  const obj = (aba==='deposito') ? state.deposito.find(r=>r['ID']===id) : state.uso.find(r=>r['ID']===id);
   if(!obj){ alert('Registro não encontrado'); return; }
-  modalTitle.textContent = (aba === 'deposito') ? 'Editar Depósito' : 'Editar Extintor';
-  modalContent.innerHTML = buildForm(obj, aba);
+  modalTitle.textContent = (aba==='deposito') ? 'Editar (Depósito)' : 'Editar Extintor';
+  modalBody.innerHTML = buildForm(obj, aba);
   modalRoot.style.display = 'flex';
-  modalSave.onclick = async ()=> {
+  document.getElementById('modalSave').onclick = async ()=> {
     const data = readFormValues();
-    if(data['Validade Nível 2']) data['Validade Nível 2'] = toISODateForSheet(data['Validade Nível 2']);
-    if(data['Validade Nível 3']) data['Validade Nível 3'] = toISODateForSheet(data['Validade Nível 3']);
+    if(data['Validade Nível 2']) data['Validade Nível 2'] = toISO(data['Validade Nível 2']);
+    if(data['Validade Nível 3']) data['Validade Nível 3'] = toISO(data['Validade Nível 3']);
+    if(data._file){
+      try {
+        const url = await uploadAndGetUrl(data._file);
+        data['FotoURL'] = url;
+      } catch(e){ alert('Erro upload: ' + e); return; }
+    }
     const res = await apiPost({acao:'editar', id: id, data});
-    if(res.ok){ modalRoot.style.display='none'; await loadAll(); } else alert(res.error || 'Erro');
+    if(res.ok){ modalRoot.style.display='none'; await loadAll(); } else alert(res.error||'Erro');
   };
 }
 
 function buildForm(obj, aba){
-  const isDep = aba === 'deposito';
   const v = obj || {};
-  if(isDep){
+  if(aba === 'deposito'){
     return `
-      <div class="row"><div class="col"><label>Tipo/kg</label><input id="f_Tipo" data-key="Tipo/kg" value="${v['Tipo/kg']||''}" /></div>
-      <div class="col"><label>Status</label><select id="f_Status" data-key="Status"><option>Operacional</option><option>Não operacional</option><option>Vencido</option></select></div></div>
+      <div class="row"><div class="col"><label>Tipo/kg</label><input data-key="Tipo/kg" id="f_Tipo" value="${v['Tipo/kg']||''}" /></div>
+      <div class="col"><label>Status</label><select data-key="Status" id="f_Status"><option>Operacional</option><option>Não operacional</option><option>Vencido</option></select></div></div>
     `;
   } else {
     return `
-      <div class="row"><div class="col"><label>Número</label><input id="f_Numero" data-key="Número" value="${v['Número']||''}" /></div>
-      <div class="col"><label>Edificação</label><input id="f_Edif" data-key="Edificação" value="${v['Edificação']||''}" /></div>
-      <div class="col"><label>Local</label><input id="f_Local" data-key="Local" value="${v['Local']||''}" /></div></div>
+      <div class="row"><div class="col"><label>Número</label><input data-key="Número" id="f_Numero" value="${v['Número']||''}" /></div>
+      <div class="col"><label>Edificação</label><input data-key="Edificação" id="f_Edif" value="${v['Edificação']||''}" /></div>
+      <div class="col"><label>Local</label><input data-key="Local" id="f_Local" value="${v['Local']||''}" /></div></div>
 
-      <div class="row"><div class="col"><label>Tipo/kg</label><input id="f_Tipo" data-key="Tipo/kg" value="${v['Tipo/kg']||''}" /></div>
-      <div class="col"><label>Substituto?</label><input id="f_Sub" data-key="Substituto?" value="${v['Substituto?']||''}" /></div>
-      <div class="col"><label>Situação</label><input id="f_Sit" data-key="Situação" value="${v['Situação']||''}" /></div></div>
+      <div class="row"><div class="col"><label>Tipo/kg</label><input data-key="Tipo/kg" id="f_Tipo" value="${v['Tipo/kg']||''}" /></div>
+      <div class="col"><label>Substituto?</label><input data-key="Substituto?" id="f_Sub" value="${v['Substituto?']||''}" /></div>
+      <div class="col"><label>Situação</label><input data-key="Situação" id="f_Sit" value="${v['Situação']||''}" /></div></div>
 
-      <div class="row"><div class="col"><label>Não conformidade</label><input id="f_NC" data-key="Não conformidade" value="${v['Não conformidade']||''}" /></div>
-      <div class="col"><label>Observação</label><input id="f_Obs" data-key="Observação" value="${v['Observação']||''}" /></div>
-      <div class="col"><label>Fabricação</label><input id="f_Fab" data-key="Fabricação" value="${v['Fabricação']||''}" /></div></div>
+      <div class="row"><div class="col"><label>Não conformidade</label><input data-key="Não conformidade" id="f_NC" value="${v['Não conformidade']||''}" /></div>
+      <div class="col"><label>Observação</label><input data-key="Observação" id="f_Obs" value="${v['Observação']||''}" /></div>
+      <div class="col"><label>Fabricação</label><input data-key="Fabricação" id="f_Fab" value="${v['Fabricação']||''}" /></div></div>
 
-      <div class="row"><div class="col"><label>Validade Nível 2 (dd/mm/yyyy)</label><input id="f_Val2" data-key="Validade Nível 2" value="${v['Validade Nível 2'] ? fmtDateForInput(v['Validade Nível 2']) : ''}" /></div>
-      <div class="col"><label>Validade Nível 3 (dd/mm/yyyy)</label><input id="f_Val3" data-key="Validade Nível 3" value="${v['Validade Nível 3'] ? fmtDateForInput(v['Validade Nível 3']) : ''}" /></div>
-      <div class="col"><label>Equipe</label><input id="f_Equipe" data-key="Equipe" value="${v['Equipe']||''}" /></div></div>
+      <div class="row"><div class="col"><label>Validade Nível 2 (dd/mm/yyyy)</label><input data-key="Validade Nível 2" id="f_Val2" value="${v['Validade Nível 2'] ? formatDate(v['Validade Nível 2']) : ''}" /></div>
+      <div class="col"><label>Validade Nível 3 (dd/mm/yyyy)</label><input data-key="Validade Nível 3" id="f_Val3" value="${v['Validade Nível 3'] ? formatDate(v['Validade Nível 3']) : ''}" /></div>
+      <div class="col"><label>Equipe</label><input data-key="Equipe" id="f_Equipe" value="${v['Equipe']||''}" /></div></div>
 
-      <div class="row"><div class="col"><label>Responsável</label><input id="f_Resp" data-key="Responsável" value="${v['Responsável']||''}" /></div>
-      <div class="col"><label>Foto (jpg/png)</label><input type="file" id="f_File" accept="image/*" /></div>
-      <div class="col"><label>URL Foto</label><input id="f_FotoURL" data-key="FotoURL" value="${v['FotoURL']||''}" /></div></div>
+      <div class="row"><div class="col"><label>Responsável</label><input data-key="Responsável" id="f_Resp" value="${v['Responsável']||''}" /></div>
+      <div class="col"><label>Foto</label><input type="file" id="f_File" accept="image/*" /></div>
+      <div class="col"><label>URL Foto</label><input data-key="FotoURL" id="f_FotoURL" value="${v['FotoURL']||''}" /></div></div>
     `;
   }
 }
 
 function readFormValues(){
-  const inputs = modalContent.querySelectorAll('input,select,textarea');
+  const inputs = modalBody.querySelectorAll('input[data-key], select[data-key], textarea[data-key]');
   const data = {};
-  inputs.forEach(i=>{
-    const key = i.dataset.key;
-    if(!key) return;
-    data[key] = i.value;
-  });
-  // if file selected handle upload and set FotoURL synchronously? we'll return file object for later handling
-  const fileInput = modalContent.querySelector('#f_File');
-  if(fileInput && fileInput.files && fileInput.files.length){
-    data._file = fileInput.files[0];
-  }
+  inputs.forEach(i => data[i.dataset.key] = i.value);
+  const fileInput = modalBody.querySelector('#f_File');
+  if(fileInput && fileInput.files && fileInput.files[0]) data._file = fileInput.files[0];
   return data;
 }
 
-/* ------------------------------
-  Upload helper (base64)
--------------------------------*/
-async function uploadFileAndGetUrl(file){
-  // read file as base64
+/* ---------- upload image ---------- */
+function uploadAndGetUrl(file){
   return new Promise((resolve,reject)=>{
     const fr = new FileReader();
     fr.onload = async function(e){
       const dataUrl = e.target.result;
-      // dataUrl like "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD..."
       const parts = dataUrl.split(',');
       const meta = parts[0]; const base64 = parts[1];
       const mime = meta.split(':')[1].split(';')[0];
       const res = await apiPost({acao:'uploadimage', fileName: file.name, mimeType: mime, dataBase64: base64});
-      if(res.ok) resolve(res.url); else reject(res.error || 'Erro upload');
+      if(res.ok) resolve(res.url); else reject(res.error||'Erro upload');
     };
-    fr.onerror = ()=> reject('Erro leitura');
+    fr.onerror = ()=> reject('Erro leitura arquivo');
     fr.readAsDataURL(file);
   });
 }
 
-/* ------------------------------
-  Save handlers for modal Save
--------------------------------*/
-modalSave.addEventListener('click', async ()=>{
-  // fallback; but most saves handled inline by openCreateModal and openEdit
-  modalRoot.style.display='none';
-});
-
-/* ------------------------------
-  Permuta modal
--------------------------------*/
-function openPermutaModal(prefUsoId, prefDepId){
+/* ---------- Permuta ---------- */
+function openPermuta(idUsoPref){
   modalTitle.textContent = 'Permutar Extintores';
-  modalContent.innerHTML = `
-    <div class="row">
-      <div class="col"><label>ID (Em Uso)</label><input id="perm_id_uso" value="${prefUsoId||''}" /></div>
-      <div class="col"><label>ID (Depósito)</label><input id="perm_id_dep" value="${prefDepId||''}" /></div>
-    </div>
-    <div style="height:8px"></div>
+  modalBody.innerHTML = `
+    <div class="row"><div class="col"><label>ID (Em Uso)</label><input id="perm_id_uso" value="${idUsoPref||''}" /></div>
+    <div class="col"><label>ID (Depósito)</label><input id="perm_id_dep" /></div></div>
     <div class="row"><div class="col"><label>Situação (uso)</label><input id="perm_sit_uso" value="Conforme" /></div>
     <div class="col"><label>Situação (dep)</label><input id="perm_sit_dep" value="Operacional" /></div></div>
   `;
-  modalRoot.style.display = 'flex';
-  modalSave.onclick = async ()=>{
+  modalRoot.style.display='flex';
+  document.getElementById('modalSave').onclick = async ()=> {
     const idUso = document.getElementById('perm_id_uso').value.trim();
     const idDep = document.getElementById('perm_id_dep').value.trim();
     const situUso = document.getElementById('perm_sit_uso').value;
     const situDep = document.getElementById('perm_sit_dep').value;
-    if(!idUso || !idDep){ alert('Informe ambos IDs'); return; }
+    if(!idUso || !idDep){ alert('Preencha ambos IDs'); return; }
     const res = await apiPost({acao:'permuta', id_uso: idUso, id_deposito: idDep, situacao_uso: situUso, situacao_deposito: situDep});
-    if(res.ok){ modalRoot.style.display='none'; await loadAll(); alert('Permuta efetuada'); } else alert(res.error || 'Erro');
+    if(res.ok){ modalRoot.style.display='none'; await loadAll(); alert('Permuta realizada'); } else alert(res.error||'Erro');
   };
 }
 
-/* ------------------------------
-  PDF export single
--------------------------------*/
+/* ---------- PDF single ---------- */
 async function downloadPdf(id){
   const item = state.uso.find(r=> r['ID']===id) || state.deposito.find(r=> r['ID']===id);
   if(!item){ alert('Registro não encontrado'); return; }
-  // create a simple printable div
-  const wrap = document.createElement('div');
-  wrap.style.width = '800px';
-  wrap.style.padding = '16px';
-  wrap.style.background = '#fff';
-  wrap.innerHTML = `
-    <h2>Ficha Extintor</h2>
-    <table>
-      <tr><td><strong>ID</strong></td><td>${item['ID']||''}</td></tr>
-      <tr><td><strong>Número</strong></td><td>${item['Número']||''}</td></tr>
-      <tr><td><strong>Edificação</strong></td><td>${item['Edificação']||''}</td></tr>
-      <tr><td><strong>Local</strong></td><td>${item['Local']||''}</td></tr>
-      <tr><td><strong>Tipo/kg</strong></td><td>${item['Tipo/kg']||''}</td></tr>
-      <tr><td><strong>Situação</strong></td><td>${item['Situação']||''}</td></tr>
-      <tr><td><strong>Validade Nível 2</strong></td><td>${item['Validade Nível 2'] ? fmtDateForInput(item['Validade Nível 2']) : ''}</td></tr>
-      <tr><td><strong>Observação</strong></td><td>${item['Observação']||''}</td></tr>
-    </table>
-  `;
+  const wrap = document.createElement('div'); wrap.style.width='800px'; wrap.style.padding='16px'; wrap.style.background='#fff';
+  wrap.innerHTML = `<h2>Ficha Extintor</h2><table>${Object.keys(item).map(k=> `<tr><td><strong>${k}</strong></td><td>${item[k]||''}</td></tr>`).join('')}</table>`;
   if(item['FotoURL']) wrap.innerHTML += `<div style="margin-top:8px"><img src="${item['FotoURL']}" style="max-width:300px" /></div>`;
   document.body.appendChild(wrap);
-  // use html2canvas + jsPDF
   const canvas = await html2canvas(wrap, {scale:1.5});
-  const imgData = canvas.toDataURL('image/jpeg', 1.0);
+  const img = canvas.toDataURL('image/jpeg',1.0);
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF('p','mm','a4');
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const imgProps = pdf.getImageProperties(imgData);
-  const pdfWidth = pageWidth - 20;
-  const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-  pdf.addImage(imgData, 'JPEG', 10, 10, pdfWidth, pdfHeight);
-  pdf.save((item['ID']||'ficha') + '.pdf');
+  const pageW = pdf.internal.pageSize.getWidth();
+  const imgProps = pdf.getImageProperties(img);
+  const pdfW = pageW - 20;
+  const pdfH = (imgProps.height * pdfW) / imgProps.width;
+  pdf.addImage(img,'JPEG',10,10,pdfW,pdfH);
+  pdf.save((item['ID']||'extintor') + '.pdf');
   wrap.remove();
 }
 
-/* ------------------------------
-  Utility: Export CSV of current uso
--------------------------------*/
-function exportCSV(){
+/* ---------- CSV export ---------- */
+function exportCsv(){
   const rows = state.uso;
   if(!rows.length){ alert('Sem registros'); return; }
   const headers = Object.keys(rows[0]);
   const lines = [headers.join(',')];
-  rows.forEach(r=>{
-    lines.push(headers.map(h=> `"${String(r[h]||'').replace(/"/g,'""')}"`).join(','));
-  });
-  const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  rows.forEach(r => lines.push(headers.map(h=> `"${String(r[h]||'').replace(/"/g,'""')}"`).join(',')));
+  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = 'extintores_em_uso.csv'; a.click(); URL.revokeObjectURL(url);
 }
 
-/* ------------------------------
-  Theme toggle
--------------------------------*/
-function toggleTheme(){
-  const cur = document.body.getAttribute('data-theme') || 'light';
-  const next = cur === 'light' ? 'dark' : 'light';
-  document.body.setAttribute('data-theme', next);
-  localStorage.setItem('ce_theme', next);
-  document.getElementById('themeToggle').textContent = next==='light' ? 'Dark' : 'Light';
-}
+/* ---------- chart donut ---------- */
+let donutChart = null;
+const chartCtx = document.getElementById('donutChart').getContext('2d');
+document.getElementById('chartColumnSelect').addEventListener('change', buildChart);
+document.getElementById('refreshChart').addEventListener('click', buildChart);
 
-/* ------------------------------
-  Open Edit flow helper instead of global onclick
--------------------------------*/
-window.openEdit = function(id){
-  openEdit(id, 'uso');
-};
-window.openPermutaModal = function(idUso, idDep){
-  // support both call signatures
-  if(arguments.length===1) openPermutaModal(idUso, null);
-  else openPermutaModal(idUso || null, idDep || null);
-};
-
-/* ------------------------------
-  Hook into form save to upload file if provided
--------------------------------*/
-async function saveFormFromModal(aba, id){
-  // read values
-  const data = {};
-  const inputs = modalContent.querySelectorAll('input[data-key], select[data-key], textarea[data-key]');
-  let file = null;
-  inputs.forEach(i=>{
-    const k = i.dataset.key;
-    if(k === 'FotoURL' && i.value) data[k] = i.value;
-    else data[k] = i.value;
-    if(i.type === 'file' && i.files && i.files[0]) file = i.files[0];
+function buildChart(){
+  const col = document.getElementById('chartColumnSelect').value;
+  const labelsCount = {};
+  state.uso.forEach(r=>{
+    let v = r[col] || '—';
+    // for dates, simplify to year-month (optional)
+    if(col.includes('Validade') && v) {
+      try { const d = new Date(v); v = (d.getFullYear()||'') + '-' + ('0'+(d.getMonth()+1)).slice(-2); } catch(e){}
+    }
+    labelsCount[v] = (labelsCount[v]||0)+1;
   });
-  if(file){
-    try {
-      const url = await uploadFileAndGetUrl(file);
-      data['FotoURL'] = url;
-    } catch(e){
-      alert('Erro upload: ' + e);
-      return;
+  const labels = Object.keys(labelsCount);
+  const data = labels.map(l=> labelsCount[l]);
+  if(donutChart) donutChart.destroy();
+  donutChart = new Chart(chartCtx, {
+    type: 'doughnut',
+    data: { labels: labels, datasets: [{ data: data }] },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'right' } }
     }
-  }
-  // convert date fields
-  if(data['Validade Nível 2']) data['Validade Nível 2'] = toISODateForSheet(data['Validade Nível 2']);
-  if(data['Validade Nível 3']) data['Validade Nível 3'] = toISODateForSheet(data['Validade Nível 3']);
-  let res;
-  if(id){
-    res = await apiPost({acao:'editar', id: id, data});
-  } else {
-    res = await apiPost({acao:'cadastrar', aba: aba, data});
-  }
-  if(res.ok){ modalRoot.style.display='none'; await loadAll(); } else alert(res.error || 'Erro');
+  });
 }
 
-/* bind create and edit modal Save to perform file upload then call above */
-(function(){
-  // override modalSave when modal contains form inputs
-  const orig = modalSave.onclick;
-  modalSave.onclick = async function(){
-    // check if modal contains data-key inputs
-    const hasForm = modalContent.querySelectorAll('input[data-key], select[data-key], textarea[data-key]').length > 0;
-    if(!hasForm){
-      if(typeof orig === 'function') orig();
-      return;
-    }
-    // determine if editing existing item (ID present near top)
-    const title = modalTitle.textContent.toLowerCase();
-    if(title.includes('editar')){
-      // find id in modal by reading a hidden field? we don't store id in modal; use global trick: if modal was opened by openEdit it passed id via closure, but to keep simple: read ID field if present
-      const idField = modalContent.querySelector('input[data-key="ID"]') || null;
-      const id = idField ? idField.value : null;
-      await saveFormFromModal('uso', id);
-    } else {
-      await saveFormFromModal('uso', null);
-    }
-  };
-})();
+/* ---------- helpers: date conversion ---------- */
+function toISO(str){
+  // accepts dd/mm/yyyy -> returns ISO string
+  const p = String(str).split('/');
+  if(p.length !== 3) return str;
+  const d = new Date(parseInt(p[2],10), parseInt(p[1],10)-1, parseInt(p[0],10));
+  return d.toISOString();
+}
+
+/* ---------- modal controls ---------- */
+document.getElementById('modalClose').addEventListener('click', ()=> modalRoot.style.display='none');
+
+/* ---------- simple masks/filters events ---------- */
+document.getElementById('searchUso').addEventListener('input', ()=> renderUsoTable());
+document.getElementById('filterTipo').addEventListener('change', ()=> renderUsoTable());
+document.getElementById('searchDep').addEventListener('input', ()=> renderDepTable());
+document.getElementById('filterDepStatus').addEventListener('change', ()=> renderDepTable());
+
+/* ---------- global open functions for inline buttons ---------- */
+window.openEdit = function(id, aba){
+  openEdit(id, aba || 'uso');
+};
+window.openPermuta = function(idUso, idDep){
+  openPermuta(idUso || null);
+};
+
+/* ---------- final: load ---------- */
+loadAll();
 
 </script>
 </body>
